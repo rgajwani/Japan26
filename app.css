@@ -52,7 +52,7 @@ button { font: inherit; color: inherit; }
 .day-chip.sel .dow { color: inherit; opacity: .8; }
 
 /* Offline status */
-.off-status { display: block; max-width: 720px; margin: 4px auto 0; padding: 0; border: 0; background: none; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; width: 100%; }
+.off-status { display: block; max-width: 720px; margin: 24px auto 0; padding: 0; border: 0; background: none; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; width: 100%; }
 .off-status.ok { color: var(--green); }
 .off-status.warn { color: var(--amber); }
 .off-status.off { color: var(--red); }
