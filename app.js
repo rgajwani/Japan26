@@ -42,11 +42,14 @@
   function renderClock() {
     d.getElementById('clock').innerHTML = 'Japan <b>' + esc(fmtTime('Asia/Tokyo')) + '</b> · California ' + esc(fmtTime('America/Los_Angeles'));
   }
-  function renderDays(sel) {
+  function renderDays(sel, base) {
+    base = base || 'day';
+    // The Map tab opens on whichever day is being looked at.
+    var mt = d.querySelector('.tabs a[data-tab="map"]'); if (mt) mt.setAttribute('href', '#map/' + sel);
     var today = todayTokyo().date;
     d.getElementById('days').innerHTML = T.days.map(function (x) {
       var cls = ['day-chip', x.city]; if (x.date === sel) cls.push('sel'); if (x.date === today) cls.push('today');
-      return '<a class="' + cls.join(' ') + '" href="#day/' + x.date + '" aria-label="' + esc(longDate(x.date) + ', ' + x.title) + '"' + (x.date === sel ? ' aria-current="date"' : '') + '>' +
+      return '<a class="' + cls.join(' ') + '" href="#' + base + '/' + x.date + '" aria-label="' + esc(longDate(x.date) + ', ' + x.title) + '"' + (x.date === sel ? ' aria-current="date"' : '') + '>' +
         '<span class="dow">' + (x.date === today ? 'Today' : dow(x.date)) + '</span><span class="dn">' + dnum(x.date) + '</span><span class="city"></span></a>';
     }).join('');
     var s = d.querySelector('.day-chip.sel');
@@ -54,7 +57,9 @@
   }
   function setTab(name) {
     [].forEach.call(d.querySelectorAll('.tabs a'), function (a) { a.classList.toggle('on', a.dataset.tab === name); });
-    d.getElementById('days').hidden = name !== 'day';
+    d.getElementById('days').hidden = name !== 'day' && name !== 'map';
+    view.classList.toggle('map-page', name === 'map');
+    d.body.classList.toggle('on-map', name === 'map');
   }
 
   // ---------- weather (Open-Meteo, no key; cached on the phone) ----------
@@ -150,7 +155,7 @@
       '<p class="highlights">' + esc(day.highlights) + '</p>';
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
     h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span><b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
-    h += '<a class="hotel-tonight" href="#" data-map="' + iso + '"><span><b>Trip map</b></span><span class="go">Show ›</span></a>';
+    h += '<a class="hotel-tonight" href="#map/' + iso + '"><span><b>Trip map</b></span><span class="go">Show ›</span></a>';
     h += openLine();
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
@@ -191,6 +196,7 @@
       return '<div class="card flight"><div class="fn">' + esc(f.flight) + '</div><div class="k">' + esc(f.date) + '</div>' +
         '<div class="route">' + esc(f.dep) + ' → ' + esc(f.arr) + '</div><div class="note-sm">' + esc(f.cabin) + '</div></div>';
     }).join('');
+    h += '<h3 id="hotels">Hotels</h3>' + hotelCards();
     h += '<h3>Everything booked</h3>';
     var last = '';
     T.bookings.forEach(function (b) {
@@ -201,11 +207,9 @@
     view.innerHTML = h; scrollTo(0, 0);
   }
 
-  function hotelsView() {
-    setTab('taxi');
+  function hotelCards() {
     var tonight = hotelFor(todayTokyo().date);
-    var h = '<h2>Hotels</h2><p class="lead">Tap “Show the driver” and hand over the phone.</p>';
-    h += T.hotels.map(function (x, i) {
+    return T.hotels.map(function (x, i) {
       return '<div class="card"><div class="k">' + esc(x.dates) + '</div><h3 style="margin:4px 0 6px">' + esc(x.name) + (x === tonight ? '<span class="hotel-tag">Tonight</span>' : '') + '</h3>' +
         '<div class="note-sm">' + esc(x.address) + '</div>' +
         '<div class="note-sm">Confirmation ' + x.conf.map(function (c) { return '<span class="mono">' + esc(c) + '</span>'; }).join(' and ') + ' · ' + esc(x.confNote) + '</div>' +
@@ -214,7 +218,6 @@
         '<a class="btn" href="' + telHref(x.tel) + '">Call</a><a class="btn" href="' + mapHref(x.map) + '" target="_blank" rel="noopener">Map</a>' +
         '<button class="btn" data-copy="' + esc(x.conf.join(', ')) + '">Copy conf.</button></div></div>';
     }).join('');
-    view.innerHTML = h; scrollTo(0, 0);
   }
 
   function phrasesView() {
@@ -254,7 +257,6 @@
     sheet.hidden = false; sheet.scrollTop = 0; d.body.style.overflow = 'hidden';
   }
   function closeSheet() {
-    if (tripMap) { tripMap.remove(); tripMap = null; }
     sheet.hidden = true; d.body.style.overflow = '';
   }
 
@@ -284,41 +286,37 @@
     });
     return out;
   }
-  function openMap(sel) {
-    var days = T.days.filter(function (x) { return pins().some(function (p) { return p.date === x.date; }); });
-    if (!sel || (sel !== 'tokyo' && sel !== 'kyoto' && !days.some(function (x) { return x.date === sel; }))) sel = tripDay(defaultDay()) && days.some(function (x) { return x.date === defaultDay(); }) ? defaultDay() : 'tokyo';
-    var chips = '<button class="w-chip' + (sel === 'tokyo' ? ' on' : '') + '" data-mapsel="tokyo">All Tokyo</button>' +
-      '<button class="w-chip' + (sel === 'kyoto' ? ' on' : '') + '" data-mapsel="kyoto">All Kyoto</button>' +
-      days.map(function (x) {
-        return '<button class="w-chip' + (sel === x.date ? ' on' : '') + '" data-mapsel="' + x.date + '"><span class="dot" style="background:' + DAY_COLORS[T.days.indexOf(x)] + '"></span>' + dow(x.date) + ' ' + dnum(x.date) + '</button>';
-      }).join('');
-    var html = '<div class="m-bar"><div class="w-chips">' + chips + '</div></div><div id="trip-map" class="m-map"><p class="m-msg">Loading map…</p></div>';
-    if (tripMap) { tripMap.remove(); tripMap = null; }
-    if (sheet.hidden || !sheet.classList.contains('mapmode')) openSheet(html, 'mapmode'); else sheetBody.innerHTML = html;
-    var on = sheetBody.querySelector('.w-chip.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
-    loadLeaflet().then(function () { drawMap(sel); }, function () {
-      d.getElementById('trip-map').innerHTML = '<p class="m-msg">The map needs a connection the first time. Try again when online.</p>';
+  function mapView(iso) {
+    if (!tripDay(iso)) iso = defaultDay();
+    renderDays(iso, 'map'); setTab('map');
+    view.innerHTML = '<div id="trip-map" class="m-map"><p class="m-msg">Loading map…</p></div>';
+    sizeMap(); scrollTo(0, 0);
+    loadLeaflet().then(function () { drawMap(iso); }, function () {
+      var el = d.getElementById('trip-map');
+      if (el) el.innerHTML = '<p class="m-msg">The map needs a connection the first time. Try again when online.</p>';
     });
   }
+  function sizeMap() {
+    var el = d.getElementById('trip-map'); if (!el) return;
+    var tabs = d.querySelector('.tabs').offsetHeight;
+    el.style.height = Math.max(240, innerHeight - el.getBoundingClientRect().top - tabs) + 'px';
+    if (tripMap) tripMap.invalidateSize();
+  }
+  addEventListener('resize', sizeMap);
   function drawMap(sel) {
     var el = d.getElementById('trip-map'); if (!el) return;
     el.innerHTML = '';
     tripMap = L.map(el, { zoomControl: true, attributionControl: true });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors' }).addTo(tripMap);
-    var all = pins(), list;
-    if (sel === 'tokyo' || sel === 'kyoto') list = all.filter(function (p) { return p.city === sel; });
-    else {
-      list = all.filter(function (p) { return p.date === sel; });
-      // A travel day spans both cities: frame the city with more stops.
-    }
-    var bounds = [];
+    var list = pins().filter(function (p) { return p.date === sel; });
+    var bounds = [], frame = frameCityOf(list);
     list.forEach(function (p) {
       var color = DAY_COLORS[p.di];
       var icon = L.divIcon({ className: '', html: '<div class="pin" style="background:' + color + '">' + p.n + '</div>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
       L.marker(p.ll, { icon: icon }).addTo(tripMap).bindPopup(
         '<div class="pop-d">' + esc(dow(p.date) + ' ' + dnum(p.date) + ' · ' + p.t) + '</div><div class="pop-t">' + esc(p.title) + '</div>' +
         '<a class="pop-a" href="#day/' + p.date + '/' + p.idx + '">Details ›</a>');
-      if (sel === 'tokyo' || sel === 'kyoto' || !frameCityOf(list) || p.city === frameCityOf(list)) bounds.push(p.ll);
+      if (!frame || p.city === frame) bounds.push(p.ll);
     });
     T.hotels.forEach(function (h, i) {
       if (!h.ll) return;
@@ -326,9 +324,18 @@
       L.marker(h.ll, { icon: icon, zIndexOffset: -100 }).addTo(tripMap).bindPopup(
         '<div class="pop-d">' + esc(h.dates) + '</div><div class="pop-t">' + esc(h.name) + '</div><a class="pop-a" href="#" data-taxi="' + i + '">Taxi card ›</a>');
     });
+    // Frame tonight's hotel too (or last night's, on the day we leave).
+    var prev = T.days[T.days.findIndex(function (x) { return x.date === sel; }) - 1];
+    var stay = hotelFor(sel) || (prev && hotelFor(prev.date));
+    if (stay && stay.ll && (!frame || (stay.ll[1] > 137 ? 'tokyo' : 'kyoto') === frame)) bounds.push(stay.ll);
+    if (!list.length) {
+      var note = L.control({ position: 'topright' });
+      note.onAdd = function () { var x = L.DomUtil.create('div', 'm-note'); x.textContent = 'No stops to map on this day.'; return x; };
+      note.addTo(tripMap);
+    }
     if (bounds.length > 1) tripMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
     else if (bounds.length === 1) tripMap.setView(bounds[0], 15);
-    else tripMap.setView(sel === 'kyoto' ? [35.0, 135.76] : [35.68, 139.74], 12);
+    else tripMap.setView([35.68, 139.74], 11);
     setTimeout(function () { if (tripMap) tripMap.invalidateSize(); }, 50);
   }
   function frameCityOf(list) {
@@ -389,7 +396,7 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w],[data-map],[data-mapsel]');
+    var t = e.target.closest('[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
     if (!t) return;
     if (t.dataset.todo) {
       e.preventDefault(); todoSheet();
@@ -406,10 +413,6 @@
       e.preventDefault();
       openSheet('<div class="s-label">Please take us here.</div><div class="s-please" lang="ja">ここまでお願いします。</div><div class="s-ja" lang="ja">' + esc(t.dataset.ja) + '</div>' +
         (t.dataset.addr ? '<div class="s-ja2" lang="ja">' + esc(t.dataset.addr) + '</div>' : '') + '<div class="s-en">' + esc(t.dataset.en) + '</div>');
-    } else if (t.dataset.map) {
-      e.preventDefault(); openMap(t.dataset.map);
-    } else if (t.dataset.mapsel) {
-      openMap(t.dataset.mapsel);
     } else if (t.dataset.vegphrases) {
       e.preventDefault(); waiter();
     } else if (t.dataset.phrase) {
@@ -436,11 +439,15 @@
   // ---------- routing ----------
   function route(first) {
     closeSheet();
+    if (tripMap) { tripMap.remove(); tripMap = null; }
+    view.classList.remove('map-page');
     var h = location.hash.slice(1);
     var m = h.match(/^day\/(\d{4}-\d{2}-\d{2})(?:\/(\d+))?$/);
     if (m) return dayView(m[1], false, m[2] !== undefined ? +m[2] : undefined);
     if (h === 'bookings') return bookingsView();
-    if (h === 'taxi') return hotelsView();
+    var mm = h.match(/^map(?:\/(\d{4}-\d{2}-\d{2}))?$/);
+    if (mm) return mapView(mm[1] || defaultDay());
+    if (h === 'taxi') { bookingsView(); var hh = d.getElementById('hotels'); if (hh) hh.scrollIntoView(); return; }
     if (h === 'phrases') return phrasesView();
     if (h === 'food') return foodView();
     return dayView(defaultDay(), true);

@@ -181,6 +181,10 @@ h3 { font: 700 19px/1.2 var(--serif); margin: 26px 0 10px; }
 .sheet.mapmode .sheet-body { max-width: none; flex: 1; display: flex; flex-direction: column; min-height: 0; text-align: left; }
 .m-bar { flex: none; padding: calc(10px + env(safe-area-inset-top, 0px)) 72px 10px 10px; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
 .m-map { flex: 1; min-height: 0; background: #eae6df; }
+main.map-page { max-width: none; padding: 0; }
+body.on-map .top { display: none; }
+main.map-page .m-map { width: 100%; }
+.m-note { background: #fff; color: #333; padding: 6px 10px; border-radius: 8px; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .m-msg { padding: 24px; color: #555; text-align: center; }
 .w-chip .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .pin { width: 28px; height: 28px; border-radius: 50%; color: #fff; font: 700 13px/26px var(--sans); text-align: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
