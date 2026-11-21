@@ -107,6 +107,9 @@ h3 { font: 700 19px/1.2 var(--serif); margin: 26px 0 10px; }
 .why b { color: var(--ink); }
 .note-sm { font-size: 13px; color: var(--muted); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sub-actions { margin-top: 6px; gap: 6px; }
+.travel-t { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.sheet .s-please { font-size: clamp(20px, 5.5vw, 34px); font-weight: 700; color: #b3261e; margin-bottom: 18px; }
 .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line);
   background: var(--card); text-decoration: none; font-size: 14px; font-weight: 600; cursor: pointer; }
 .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }

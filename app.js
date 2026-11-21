@@ -87,12 +87,23 @@
     var label = { booked: 'Booked', optional: 'Optional', requested: 'Requested', todo: 'To do', veg: 'Veg pick', split: 'Split' };
     return (tags || []).map(function (t) { return '<span class="tag ' + t + '">' + (label[t] || t) + '</span>'; }).join('');
   }
-  function actions(o) {
-    var a = [];
-    if (o.map) a.push('<a class="btn" href="' + mapHref(o.map) + '" target="_blank" rel="noopener">Map</a>');
+  function taxiChip(r, en) {
+    if (!r || r.noTaxi) return '';
+    if (r.hotel !== undefined) return '<button class="btn" data-taxi="' + r.hotel + '">Taxi card</button>';
+    if (!r.ja) return '';
+    return '<button class="btn" data-place="1" data-ja="' + esc(r.ja) + '" data-addr="' + esc(r.jaAddr || '') + '" data-en="' + esc(en || '') + '">Taxi card</button>';
+  }
+  function travelLine(r) {
+    if (!r || !r.by) return '';
+    return '<p class="travel-t">Travel time ' + (r.by === 'foot' ? 'on foot' : 'by ' + esc(r.by)) + ': ' + esc(r.time) + '</p>';
+  }
+  function actions(o, r) {
+    var a = [], map = o.map || (r && r.map);
+    if (map) a.push('<a class="btn" href="' + mapHref(map) + '" target="_blank" rel="noopener">Map</a>');
+    var tx = taxiChip(r, map || o.title); if (tx) a.push(tx);
     if (o.tel) a.push('<a class="btn" href="' + telHref(o.tel) + '">Call ' + esc(o.tel) + '</a>');
     if (o.conf) a.push('<button class="btn" data-copy="' + esc(o.conf) + '">Copy <span class="mono">' + esc(o.conf) + '</span></button>');
-    return a.length ? '<div class="actions">' + a.join('') + '</div>' : '';
+    return (a.length ? '<div class="actions">' + a.join('') + '</div>' : '') + travelLine(r);
   }
   function openItems(onlyDueBy) {
     return (T.open || []).filter(function (o) { return !onlyDueBy || (!isDone(o.id) && o.due >= onlyDueBy); });
@@ -132,10 +143,11 @@
       if (it.note) body += '<p class="note-sm">' + esc(it.note) + '</p>';
       if (it.text) body += '<p>' + esc(it.text) + '</p>';
       if (it.list) body += '<ul class="sublist">' + it.list.map(function (l) {
-        return '<li><b>' + esc(l.label) + '</b>' + esc(l.text) + (l.map ? ' <a href="' + mapHref(l.map) + '" target="_blank" rel="noopener">Map</a>' : '') + '</li>';
+        return '<li><b>' + esc(l.label) + '</b>' + esc(l.text) + (l.map ? '<span class="actions sub-actions"><a class="btn sm" href="' + mapHref(l.map) + '" target="_blank" rel="noopener">Map</a>' +
+          taxiChip((T.subRoutes || {})[l.map], l.map).replace('class="btn"', 'class="btn sm"') + '</span>' : '') + '</li>';
       }).join('') + '</ul>';
       if (it.why) body += '<p class="why"><b>Why:</b> ' + esc(it.why) + '</p>';
-      body += actions(it);
+      body += actions(it, (T.routes || {})[iso + '|' + it.title]);
       return '<li class="' + cls.join(' ') + '" id="it-' + i + '"><details' + (i === nowIdx || i === nextIdx ? ' open' : '') + '><summary>' +
         '<span class="when' + (isClock ? ' clock-t' : '') + '">' + esc(it.t) + '</span>' +
         '<span><span class="ttl">' + esc(it.title) + '</span>' +
@@ -276,7 +288,7 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-copy],[data-taxi],[data-phrase],[data-vegphrases],[data-w]');
+    var t = e.target.closest('[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
     if (!t) return;
     if (t.dataset.copy) {
       e.preventDefault();
@@ -285,8 +297,12 @@
     } else if (t.dataset.taxi) {
       e.preventDefault();
       var x = T.hotels[+t.dataset.taxi];
-      openSheet('<div class="s-label">Please take us to:</div><div class="s-ja" lang="ja">' + esc(x.jaName) + '</div><div class="s-ja2" lang="ja">' + esc(x.jaAddress) + '</div>' +
+      openSheet('<div class="s-label">Please take us here.</div><div class="s-please" lang="ja">ここまでお願いします。</div><div class="s-ja" lang="ja">' + esc(x.jaName) + '</div><div class="s-ja2" lang="ja">' + esc(x.jaAddress) + '</div>' +
         '<div class="s-en">' + esc(x.name) + ' · ' + esc(x.tel) + '</div>');
+    } else if (t.dataset.place) {
+      e.preventDefault();
+      openSheet('<div class="s-label">Please take us here.</div><div class="s-please" lang="ja">ここまでお願いします。</div><div class="s-ja" lang="ja">' + esc(t.dataset.ja) + '</div>' +
+        (t.dataset.addr ? '<div class="s-ja2" lang="ja">' + esc(t.dataset.addr) + '</div>' : '') + '<div class="s-en">' + esc(t.dataset.en) + '</div>');
     } else if (t.dataset.vegphrases) {
       e.preventDefault(); waiter();
     } else if (t.dataset.phrase) {
