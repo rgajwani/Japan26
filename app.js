@@ -582,7 +582,11 @@
   });
 
   // ---------- offline ----------
-  // Note: on iPhone a Home Screen web app keeps its own storage, apart from Safari's.
+  // iOS keeps a Home Screen web app's storage apart from Safari's, and Safari
+  // tabs can lose site data after a week unused. So on iPhone the app should be
+  // added to the Home Screen and opened (and unlocked) there once while online.
+  var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var STANDALONE = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
   var offState = { files: null, missing: [], tiles: 0, busy: '' };
   function swCall(msg) {
     if (!('serviceWorker' in navigator)) return Promise.reject(new Error('no service worker'));
@@ -599,6 +603,7 @@
     var txt, cls;
     if (offState.busy) { txt = offState.busy; cls = 'busy'; }
     else if (!navigator.onLine) { txt = 'Offline · using the saved copy'; cls = 'off'; }
+    else if (IOS && !STANDALONE) { txt = 'Add to Home Screen for offline use ›'; cls = 'warn'; }
     else if (offState.files === null) { txt = 'Checking offline copy…'; cls = 'busy'; }
     else if (offState.missing.length) { txt = 'Not fully saved for offline · fix ›'; cls = 'warn'; }
     else { txt = '✓ Saved for offline' + (store('mapsSavedAt') ? ' with maps' : ' · save maps ›'); cls = store('mapsSavedAt') ? 'ok' : 'warn'; }
@@ -633,8 +638,10 @@
     });
   }
   function offlineSheet() {
+    var steps = IOS && !STANDALONE ?
+      '<div class="todo-row" style="display:block"><b>On iPhone, add this app to your Home Screen first.</b> Tap the Share button <b>⬆</b>, then <b>Add to Home Screen</b>. Open it from the Home Screen icon and enter the passphrase once while online. The Home Screen app keeps its own offline copy, separate from Safari, and iOS does not clear it.</div>' : '';
     var st = offState.files === null ? 'Checking…' : offState.missing.length ? 'Missing: ' + offState.missing.join(', ') : 'All ' + offState.files + ' app files are saved on this phone.';
-    openSheet('<h2 class="s-h">Offline</h2><p class="s-note">The whole itinerary, taxi cards, phrases and meals work without a connection. Maps work offline for areas already saved.</p>' +
+    openSheet('<h2 class="s-h">Offline</h2><p class="s-note">The whole itinerary, taxi cards, phrases and meals work without a connection. Maps work offline for areas already saved.</p>' + steps +
       '<div class="todo-row" style="display:block"><b>App:</b> ' + esc(st) + '<br><b>Maps:</b> ' + (offState.tiles || 0) + ' map tiles saved' +
       (store('mapsSavedAt') ? ', every day\'s map saved ' + esc(store('mapsSavedAt')) : '; day maps not saved yet') + '.</div>' +
       '<p><button class="btn primary" data-savenow="1"' + (navigator.onLine ? '' : ' disabled') + '>Save everything now</button></p>' +
