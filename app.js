@@ -276,7 +276,7 @@
       '<a role="tab" href="#meals/all" class="' + (mode === 'all' ? 'on' : '') + '">All options</a></div>' +
       '<details class="legend"><summary>What the tags mean</summary><p>' +
       '<span class="badge b-her">Backup list</span> on the itinerary\'s backup list · <span class="badge b-together">Together</span> all five can eat well · ' +
-      '<span class="badge b-split">Split</span> Mom and Aria eat nearby · <span class="badge b-reach">Reach</span> hard to book; ask the concierge · ' +
+      '<span class="badge b-split">Split</span> Vineeta and Aria eat nearby · <span class="badge b-reach">Reach</span> hard to book; ask the concierge · ' +
       '<span class="badge b-keep">Keep</span> the plan already works for everyone. Every meat pick is seafood-free or can be ordered that way. Breakfasts stay at the hotels.</p></details>';
     if (mode === 'meal') {
       var today = focus || defaultDay();
