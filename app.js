@@ -233,7 +233,7 @@
   function mealCity(date, time) { return date < '2026-11-25' || (date === '2026-11-25' && /AM/.test(time)) ? 'Tokyo' : 'Kyoto'; }
   function optBadges(o) {
     var b = [];
-    if (o.her) b.push('<span class="badge b-her">Her list</span>');
+    if (o.her) b.push('<span class="badge b-her">Backup list</span>');
     if (FMT[o.fmt]) b.push('<span class="badge ' + FMT[o.fmt][1] + '">' + FMT[o.fmt][0] + '</span>');
     if (BOOK[o.book]) b.push('<span class="badge ' + (o.book === 'reach' ? 'b-reach' : 'b-book') + '">' + BOOK[o.book] + '</span>');
     return b.join('');
@@ -253,9 +253,9 @@
   function mealBlock(md, ml, open) {
     var h = '<details class="mmeal"' + (open ? ' open' : '') + '><summary><span class="m-time">' + esc(ml.time) + '</span><span class="m-lab">' + esc(ml.label) +
       (ml.keep ? ' <span class="badge b-keep">Keep</span>' : '') + (ml.fix ? ' <span class="badge b-reach">Fix</span>' : '') + '</span><span class="chev" aria-hidden="true">▼</span></summary><div class="m-body">';
-    if (ml.her) h += '<p class="box plan"><b>Her plan</b> ' + esc(ml.her) + '</p>';
+    if (ml.her) h += '<p class="box plan"><b>Plan</b> ' + esc(ml.her) + '</p>';
     if (ml.fix) h += '<p class="box fix"><b>Fix</b> ' + esc(ml.fix) + '</p>';
-    if (ml.pick) h += '<p class="box pick"><b>My pick</b> ' + esc(ml.pick) + '</p>';
+    if (ml.pick) h += '<p class="box pick"><b>Suggestion</b> ' + esc(ml.pick) + '</p>';
     if (ml.options) {
       if (ml.sequence) h += '<p class="note-sm">In walking order:</p>';
       h += ml.options.map(function (o, i) { return optCard(o, i + 1); }).join('');
@@ -275,9 +275,9 @@
       '<a role="tab" href="#meals' + (focus ? '/' + focus : '') + '" class="' + (mode === 'meal' ? 'on' : '') + '">Per meal</a>' +
       '<a role="tab" href="#meals/all" class="' + (mode === 'all' ? 'on' : '') + '">All options</a></div>' +
       '<details class="legend"><summary>What the tags mean</summary><p>' +
-      '<span class="badge b-her">Her list</span> on her backup list · <span class="badge b-together">Together</span> all five can eat well · ' +
-      '<span class="badge b-split">Split</span> she and Aria eat nearby · <span class="badge b-reach">Reach</span> hard to book; ask the concierge · ' +
-      '<span class="badge b-keep">Keep</span> her plan already works for everyone. Every meat pick is seafood-free or can be ordered that way. Breakfasts stay at the hotels.</p></details>';
+      '<span class="badge b-her">Backup list</span> on the itinerary\'s backup list · <span class="badge b-together">Together</span> all five can eat well · ' +
+      '<span class="badge b-split">Split</span> Mom and Aria eat nearby · <span class="badge b-reach">Reach</span> hard to book; ask the concierge · ' +
+      '<span class="badge b-keep">Keep</span> the plan already works for everyone. Every meat pick is seafood-free or can be ordered that way. Breakfasts stay at the hotels.</p></details>';
     if (mode === 'meal') {
       var today = focus || defaultDay();
       h += '<details class="fixes"><summary><b>Fix these first</b> <span class="cnt">' + M.fixes.length + '</span></summary><ol>' +
@@ -318,7 +318,7 @@
     function section(title, inner, n, open) {
       return '<details class="mday"' + (open ? ' open' : '') + '><summary><span class="md-t"><span class="md-title">' + esc(title) + '</span><span class="md-sub">' + n + (n === 1 ? ' place' : ' places') + '</span></span><span class="chev" aria-hidden="true">▼</span></summary><div class="md-body">' + inner + '</div></details>';
     }
-    var chips = [['all', 'All'], ['together', 'Together'], ['her', 'Her list'], ['walkin', 'Walk in']].map(function (c) {
+    var chips = [['all', 'All'], ['together', 'Together'], ['her', 'Backup list'], ['walkin', 'Walk in']].map(function (c) {
       return '<button class="w-chip sm' + (flt === c[0] ? ' on' : '') + '" data-mfilter="' + c[0] + '">' + c[1] + '</button>';
     }).join('');
     h += '<input class="search" id="meals-q" type="search" placeholder="Search: wagyu, yakitori, Ginza, vegan…" autocomplete="off" value="' + esc(mealsQ) + '">' +
@@ -331,8 +331,8 @@
       if (rows.length) h += section(city + ': meat map picks', rows.map(function (x) {
         return optCard(x.o, 0, 'Suggested for <a href="#meals/' + x.date + '">' + esc(dow(x.date) + ' ' + dnum(x.date)) + ', ' + esc(x.label) + '</a>');
       }).join(''), rows.length, city === cityNow || !!q || flt !== 'all');
-      if (back.length) h += section(city + ': her backup list', back.map(function (f) {
-        return '<details class="opt"><summary><span class="opt-h"><span class="opt-n">' + esc(f.name) + '</span><span class="badges"><span class="badge b-her">Her list</span></span>' +
+      if (back.length) h += section(city + ': backup list', back.map(function (f) {
+        return '<details class="opt"><summary><span class="opt-h"><span class="opt-n">' + esc(f.name) + '</span><span class="badges"><span class="badge b-her">Backup list</span></span>' +
           (f.area ? '<span class="opt-f">' + esc(f.area) + '</span>' : '') + '</span><span class="chev" aria-hidden="true">▼</span></summary><div class="opt-b"><p>' + esc(f.text) + '</p>' +
           '<div class="actions"><a class="btn sm" href="' + mapHref(f.name + ' ' + (f.area && f.area.indexOf('all over') < 0 ? f.area : '') + ' ' + city) + '" target="_blank" rel="noopener">Map</a></div></div></details>';
       }).join(''), back.length, !!q || flt === 'her');
