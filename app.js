@@ -122,7 +122,7 @@
       '<div class="wx" id="wx" data-date="' + iso + '" data-city="' + day.city + '">' + esc(wx || '') + '</div></div></div>' +
       '<p class="highlights">' + esc(day.highlights) + '</p>';
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
-    h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span>At every meal: <b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
+    h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span><b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
     if (isToday || iso === defaultDay()) h += openBox(openItems(iso), 'Still open');
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
