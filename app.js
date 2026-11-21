@@ -156,6 +156,8 @@
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
     h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span><b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
     h += '<a class="hotel-tonight" href="#map/' + iso + '"><span><b>Trip map</b></span><span class="go">Show ›</span></a>';
+    if (T.meals && T.meals.days.some(function (x) { return x.date === iso; }))
+      h += '<a class="hotel-tonight" href="#meals/' + iso + '"><span><b>Meal options</b></span><span class="go">Show ›</span></a>';
     h += openLine();
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
@@ -230,25 +232,123 @@
     scrollTo(0, 0);
   }
 
-  function foodView(q) {
-    setTab('food');
-    q = (q || '').toLowerCase();
-    function list(arr, city) {
-      var rows = arr.filter(function (f) { return !q || (f.name + ' ' + (f.area || '') + ' ' + f.text).toLowerCase().indexOf(q) >= 0; });
-      if (!rows.length) return '';
-      return '<h3>' + city + '</h3>' + rows.map(function (f) {
-        return '<div class="food"><div class="n">' + esc(f.name) + '</div>' + (f.area ? '<div class="a">' + esc(f.area) + '</div>' : '') +
-          '<p>' + esc(f.text) + '</p><a class="btn sm" href="' + mapHref(f.name + ' ' + (f.area && f.area.indexOf('all over') < 0 ? f.area : '') + ' ' + city) + '" target="_blank" rel="noopener">Map</a></div>';
-      }).join('');
-    }
-    var listHtml = list(T.backups.tokyo, 'Tokyo') + list(T.backups.kyoto, 'Kyoto');
-    if (!d.getElementById('food-q')) {
-      view.innerHTML = '<h2>Backup restaurants</h2><p class="lead">' + esc(T.backups.intro) + '</p>' +
-        '<input class="search" id="food-q" type="search" placeholder="Search: ramen, vegan, Ginza…" autocomplete="off"><div id="food-list"></div>';
-      scrollTo(0, 0);
-    }
-    d.getElementById('food-list').innerHTML = listHtml || '<p class="lead">Nothing matches.</p>';
+  // ---------- meals: per-meal plan and all options ----------
+  var FMT = { together: ['Together', 'b-together'], split: ['Split', 'b-split'], either: ['Together or split', 'b-together'] };
+  var BOOK = { online: 'Book online', call: 'Call', walkin: 'Walk in', hotel: 'In the hotel', reach: 'Reach' };
+  function mealCity(date, time) { return date < '2026-11-25' || (date === '2026-11-25' && /AM/.test(time)) ? 'Tokyo' : 'Kyoto'; }
+  function optBadges(o) {
+    var b = [];
+    if (o.her) b.push('<span class="badge b-her">Her list</span>');
+    if (FMT[o.fmt]) b.push('<span class="badge ' + FMT[o.fmt][1] + '">' + FMT[o.fmt][0] + '</span>');
+    if (BOOK[o.book]) b.push('<span class="badge ' + (o.book === 'reach' ? 'b-reach' : 'b-book') + '">' + BOOK[o.book] + '</span>');
+    return b.join('');
   }
+  function optCard(o, rank, where) {
+    var acts = '<a class="btn sm" href="' + mapHref(o.jp || o.name) + '" target="_blank" rel="noopener">Map</a>';
+    if (o.jp) acts += '<button class="btn sm" data-place="1" data-ja="' + esc(o.jp) + '" data-addr="" data-en="' + esc(o.name) + '">Taxi card</button>' +
+      '<button class="btn sm" data-copy="' + esc(o.jp) + '">Copy Japanese</button>';
+    if (o.link) acts += '<a class="btn sm" href="' + esc(o.link.url) + '" target="_blank" rel="noopener">' + esc(o.link.label) + '</a>';
+    return '<details class="opt"><summary>' + (rank ? '<span class="rank">' + rank + '</span>' : '') +
+      '<span class="opt-h"><span class="opt-n">' + esc(o.name) + '</span><span class="badges">' + optBadges(o) + '</span>' +
+      (o.facts ? '<span class="opt-f">' + esc(o.facts) + '</span>' : '') + (where ? '<span class="opt-w">' + where + '</span>' : '') + '</span>' +
+      '<span class="chev" aria-hidden="true">▼</span></summary><div class="opt-b">' +
+      (o.body ? '<p>' + esc(o.body) + '</p>' : '') + (o.contact ? '<p class="note-sm"><b>Book:</b> ' + esc(o.contact) + '</p>' : '') +
+      (o.jp ? '<p class="jp-line" lang="ja">' + esc(o.jp) + '</p>' : '') + '<div class="actions">' + acts + '</div></div></details>';
+  }
+  function mealBlock(md, ml, open) {
+    var h = '<details class="mmeal"' + (open ? ' open' : '') + '><summary><span class="m-time">' + esc(ml.time) + '</span><span class="m-lab">' + esc(ml.label) +
+      (ml.keep ? ' <span class="badge b-keep">Keep</span>' : '') + (ml.fix ? ' <span class="badge b-reach">Fix</span>' : '') + '</span><span class="chev" aria-hidden="true">▼</span></summary><div class="m-body">';
+    if (ml.her) h += '<p class="box plan"><b>Her plan</b> ' + esc(ml.her) + '</p>';
+    if (ml.fix) h += '<p class="box fix"><b>Fix</b> ' + esc(ml.fix) + '</p>';
+    if (ml.pick) h += '<p class="box pick"><b>My pick</b> ' + esc(ml.pick) + '</p>';
+    if (ml.options) {
+      if (ml.sequence) h += '<p class="note-sm">In walking order:</p>';
+      h += ml.options.map(function (o, i) { return optCard(o, i + 1); }).join('');
+    }
+    (ml.groups || []).forEach(function (g) {
+      h += '<h4 class="m-group">' + esc(g.title) + '</h4>' + g.options.map(function (o, i) { return optCard(o, i + 1); }).join('');
+    });
+    if (ml.note) h += '<p class="note-sm m-note2">' + esc(ml.note) + '</p>';
+    return h + '</div></details>';
+  }
+  function mealsView(mode, focus) {
+    setTab('meals');
+    var M = T.meals;
+    if (mode !== 'all') mode = 'meal';
+    store('mealsMode', mode);
+    var h = '<h2>Meals</h2><div class="seg" role="tablist">' +
+      '<a role="tab" href="#meals' + (focus ? '/' + focus : '') + '" class="' + (mode === 'meal' ? 'on' : '') + '">Per meal</a>' +
+      '<a role="tab" href="#meals/all" class="' + (mode === 'all' ? 'on' : '') + '">All options</a></div>' +
+      '<details class="legend"><summary>What the tags mean</summary><p>' +
+      '<span class="badge b-her">Her list</span> on her backup list · <span class="badge b-together">Together</span> all five can eat well · ' +
+      '<span class="badge b-split">Split</span> she and Aria eat nearby · <span class="badge b-reach">Reach</span> hard to book; ask the concierge · ' +
+      '<span class="badge b-keep">Keep</span> her plan already works for everyone. Every meat pick is seafood-free or can be ordered that way. Breakfasts stay at the hotels.</p></details>';
+    if (mode === 'meal') {
+      var today = focus || defaultDay();
+      h += '<details class="fixes"><summary><b>Fix these first</b> <span class="cnt">' + M.fixes.length + '</span></summary><ol>' +
+        M.fixes.map(function (f) { return '<li><a href="#meals/' + f.day + '">' + esc(dow(f.day) + ' ' + dnum(f.day)) + '</a><span>' + esc(f.text) + '</span></li>'; }).join('') + '</ol></details>';
+      h += M.days.map(function (md) {
+        var isOpen = md.date === today;
+        return '<details class="mday" id="md-' + md.date + '"' + (isOpen ? ' open' : '') + '><summary><span class="md-date">' + esc(dow(md.date)) + '<b>' + dnum(md.date) + '</b></span>' +
+          '<span class="md-t"><span class="md-title">' + esc(md.title) + '</span><span class="md-sub">' + esc(md.city) + ' · ' + md.meals.length + (md.meals.length === 1 ? ' meal' : ' meals') + '</span></span>' +
+          '<span class="chev" aria-hidden="true">▼</span></summary><div class="md-body">' +
+          md.meals.map(function (ml) { return mealBlock(md, ml, isOpen && md.meals.length <= 2); }).join('') +
+          '<a class="md-link" href="#day/' + md.date + '">See the full day ›</a></div></details>';
+      }).join('');
+      view.innerHTML = h;
+      var f = focus && d.getElementById('md-' + focus);
+      if (f) setTimeout(function () { scrollTo(0, Math.max(0, f.getBoundingClientRect().top + scrollY - 12)); }, 0); else scrollTo(0, 0);
+      return;
+    }
+    // All options: every meat-map pick plus her backup list, by city.
+    var groups = { Tokyo: [], Kyoto: [] };
+    M.days.forEach(function (md) {
+      md.meals.forEach(function (ml) {
+        var all = (ml.options || []).concat.apply(ml.options || [], (ml.groups || []).map(function (g) { return g.options; }));
+        all.forEach(function (o) { groups[mealCity(md.date, ml.time)].push({ o: o, date: md.date, label: ml.label }); });
+      });
+    });
+    var q = mealsQ.toLowerCase(), flt = mealsFilter;
+    function keep(x) {
+      var o = x.o;
+      if (flt === 'together' && !(o.fmt === 'together' || o.fmt === 'either')) return false;
+      if (flt === 'her' && !o.her) return false;
+      if (flt === 'walkin' && o.book !== 'walkin') return false;
+      return !q || (o.name + ' ' + (o.facts || '') + ' ' + (o.body || '') + ' ' + (o.jp || '')).toLowerCase().indexOf(q) >= 0;
+    }
+    function backupKeep(f) {
+      if (flt === 'together' || flt === 'walkin') return false;
+      return !q || (f.name + ' ' + (f.area || '') + ' ' + f.text).toLowerCase().indexOf(q) >= 0;
+    }
+    function section(title, inner, n, open) {
+      return '<details class="mday"' + (open ? ' open' : '') + '><summary><span class="md-t"><span class="md-title">' + esc(title) + '</span><span class="md-sub">' + n + (n === 1 ? ' place' : ' places') + '</span></span><span class="chev" aria-hidden="true">▼</span></summary><div class="md-body">' + inner + '</div></details>';
+    }
+    var chips = [['all', 'All'], ['together', 'Together'], ['her', 'Her list'], ['walkin', 'Walk in']].map(function (c) {
+      return '<button class="w-chip sm' + (flt === c[0] ? ' on' : '') + '" data-mfilter="' + c[0] + '">' + c[1] + '</button>';
+    }).join('');
+    h += '<input class="search" id="meals-q" type="search" placeholder="Search: wagyu, yakitori, Ginza, vegan…" autocomplete="off" value="' + esc(mealsQ) + '">' +
+      '<div class="w-chips m-chips">' + chips + '</div><div id="meals-list">';
+    var cityNow = defaultDay() >= '2026-11-25' ? 'Kyoto' : 'Tokyo', total = 0;
+    ['Tokyo', 'Kyoto'].forEach(function (city) {
+      var rows = groups[city].filter(keep);
+      var back = (T.backups[city.toLowerCase()] || []).filter(backupKeep);
+      total += rows.length + back.length;
+      if (rows.length) h += section(city + ': meat map picks', rows.map(function (x) {
+        return optCard(x.o, 0, 'Suggested for <a href="#meals/' + x.date + '">' + esc(dow(x.date) + ' ' + dnum(x.date)) + ', ' + esc(x.label) + '</a>');
+      }).join(''), rows.length, city === cityNow || !!q || flt !== 'all');
+      if (back.length) h += section(city + ': her backup list', back.map(function (f) {
+        return '<details class="opt"><summary><span class="opt-h"><span class="opt-n">' + esc(f.name) + '</span><span class="badges"><span class="badge b-her">Her list</span></span>' +
+          (f.area ? '<span class="opt-f">' + esc(f.area) + '</span>' : '') + '</span><span class="chev" aria-hidden="true">▼</span></summary><div class="opt-b"><p>' + esc(f.text) + '</p>' +
+          '<div class="actions"><a class="btn sm" href="' + mapHref(f.name + ' ' + (f.area && f.area.indexOf('all over') < 0 ? f.area : '') + ' ' + city) + '" target="_blank" rel="noopener">Map</a></div></div></details>';
+      }).join(''), back.length, !!q || flt === 'her');
+    });
+    if (!total) h += '<p class="lead">Nothing matches.</p>';
+    h += '</div>';
+    var hadFocus = d.activeElement && d.activeElement.id === 'meals-q';
+    view.innerHTML = h;
+    if (hadFocus) { var qi = d.getElementById('meals-q'); qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); } else scrollTo(0, 0);
+  }
+  var mealsQ = '', mealsFilter = 'all';
 
   // ---------- full-screen sheet ----------
   var sheet = d.getElementById('sheet'), sheetBody = d.getElementById('sheet-body');
@@ -396,9 +496,11 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
+    var t = e.target.closest('[data-mfilter],[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
     if (!t) return;
-    if (t.dataset.todo) {
+    if (t.dataset.mfilter) {
+      mealsFilter = t.dataset.mfilter; mealsView('all');
+    } else if (t.dataset.todo) {
       e.preventDefault(); todoSheet();
     } else if (t.dataset.copy) {
       e.preventDefault();
@@ -429,7 +531,7 @@
       if (oc) { var txt = openCountText(); oc.textContent = '· ' + txt; oc.classList.toggle('late', /overdue/.test(txt)); }
     }
   });
-  d.addEventListener('input', function (e) { if (e.target.id === 'food-q') foodView(e.target.value); });
+  d.addEventListener('input', function (e) { if (e.target.id === 'meals-q') { mealsQ = e.target.value; mealsView('all'); } });
   d.getElementById('theme').onclick = function () {
     var cur = d.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     var next = cur === 'dark' ? 'light' : 'dark';
@@ -449,7 +551,12 @@
     if (mm) return mapView(mm[1] || defaultDay());
     if (h === 'taxi') { bookingsView(); var hh = d.getElementById('hotels'); if (hh) hh.scrollIntoView(); return; }
     if (h === 'phrases') return phrasesView();
-    if (h === 'food') return foodView();
+    var me = h.match(/^(?:meals|food)(?:\/(all|\d{4}-\d{2}-\d{2}))?$/);
+    if (me) {
+      if (me[1] === 'all') return mealsView('all');
+      if (me[1]) return mealsView('meal', me[1]);
+      return mealsView(h === 'meals' && store('mealsMode') === 'all' ? 'all' : 'meal');
+    }
     return dayView(defaultDay(), true);
   }
   addEventListener('hashchange', function () { route(false); });
