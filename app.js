@@ -106,16 +106,30 @@
     if (o.conf) a.push('<button class="btn" data-copy="' + esc(o.conf) + '">Copy <span class="mono">' + esc(o.conf) + '</span></button>');
     return (a.length ? '<div class="actions">' + a.join('') + '</div>' : '') + travelLine(r);
   }
-  function openItems(onlyDueBy) {
-    return (T.open || []).filter(function (o) { return !onlyDueBy || (!isDone(o.id) && o.due >= onlyDueBy); });
+  // Loose ends. Ticks live in this phone's storage only.
+  function openCountText() {
+    var left = (T.open || []).filter(function (o) { return !isDone(o.id); });
+    var today = todayTokyo().date, late = left.filter(function (o) { return o.due < today; }).length;
+    if (!left.length) return 'all done';
+    return left.length + ' to do' + (late ? ', ' + late + ' overdue' : '');
   }
-  function openBox(items, title) {
-    if (!items.length) return '';
-    return '<section class="open-box"><div class="lbl">' + esc(title) + '</div>' + items.map(function (o) {
-      var done = isDone(o.id);
-      return '<label class="open-row' + (done ? ' done' : '') + '"><input type="checkbox" data-done="' + esc(o.id) + '"' + (done ? ' checked' : '') + '>' +
-        '<span><span class="t">' + esc(o.title) + '</span><br><span class="d">' + esc(o.detail) + '</span></span></label>';
-    }).join('') + '</section>';
+  function openLine() {
+    var txt = openCountText();
+    return '<a class="hotel-tonight" href="#" data-todo="1"><span><b>Still open</b> <span id="open-count" class="open-count' +
+      (/overdue/.test(txt) ? ' late' : '') + '">· ' + esc(txt) + '</span></span><span class="go">Show ›</span></a>';
+  }
+  function todoSheet() {
+    var today = todayTokyo().date;
+    var items = (T.open || []).slice().sort(function (x, y) {
+      return (isDone(x.id) - isDone(y.id)) || (x.due < y.due ? -1 : x.due > y.due ? 1 : 0);
+    });
+    openSheet('<h2 class="s-h">Still open</h2><p class="s-note">Tick an item when it is done. Ticks are saved on this phone only; other phones keep their own.</p>' +
+      items.map(function (o) {
+        var done = isDone(o.id), late = !done && o.due < today;
+        return '<label class="todo-row' + (done ? ' done' : '') + '"><input type="checkbox" data-done="' + esc(o.id) + '"' + (done ? ' checked' : '') + '>' +
+          '<span><span class="t">' + esc(o.title) + '</span><span class="d">' + esc(o.detail) + '</span>' +
+          '<span class="due' + (late ? ' late' : '') + '">' + (late ? 'Overdue since ' : 'Due ') + esc(longDate(o.due)) + '</span></span></label>';
+      }).join(''), 'listmode');
   }
 
   // ---------- views ----------
@@ -137,7 +151,7 @@
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
     h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span><b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
     h += '<a class="hotel-tonight" href="#" data-map="' + iso + '"><span><b>Trip map</b></span><span class="go">Show ›</span></a>';
-    if (isToday || iso === defaultDay()) h += openBox(openItems(iso), 'Still open');
+    h += openLine();
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
       var extra = i === nowIdx ? '<span class="tag nowtag">Now</span>' : i === nextIdx ? '<span class="tag nexttag">Next</span>' : '';
@@ -171,7 +185,7 @@
 
   function bookingsView() {
     setTab('bookings');
-    var h = '<h2>Bookings</h2>' + openBox(openItems(), 'Loose ends');
+    var h = '<h2>Bookings</h2>' + openLine();
     h += '<h3>Flights · JAL <span class="mono">' + esc(T.flightConf) + '</span> <button class="btn sm" data-copy="' + esc(T.flightConf) + '">Copy</button></h3>';
     h += T.flights.map(function (f) {
       return '<div class="card flight"><div class="fn">' + esc(f.flight) + '</div><div class="k">' + esc(f.date) + '</div>' +
@@ -375,9 +389,11 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w],[data-map],[data-mapsel]');
+    var t = e.target.closest('[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w],[data-map],[data-mapsel]');
     if (!t) return;
-    if (t.dataset.copy) {
+    if (t.dataset.todo) {
+      e.preventDefault(); todoSheet();
+    } else if (t.dataset.copy) {
       e.preventDefault();
       var v = t.dataset.copy;
       (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () { toast('Copied ' + v); }, function () { toast(v); });
@@ -405,7 +421,9 @@
   d.addEventListener('change', function (e) {
     if (e.target.dataset && e.target.dataset.done) {
       store('done:' + e.target.dataset.done, e.target.checked ? '1' : null);
-      e.target.closest('.open-row').classList.toggle('done', e.target.checked);
+      e.target.closest('.todo-row').classList.toggle('done', e.target.checked);
+      var oc = d.getElementById('open-count');
+      if (oc) { var txt = openCountText(); oc.textContent = '· ' + txt; oc.classList.toggle('late', /overdue/.test(txt)); }
     }
   });
   d.addEventListener('input', function (e) { if (e.target.id === 'food-q') foodView(e.target.value); });

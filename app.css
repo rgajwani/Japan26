@@ -66,15 +66,6 @@ h3 { font: 700 19px/1.2 var(--serif); margin: 26px 0 10px; }
 .hotel-tonight b { font-weight: 600; }
 .hotel-tonight .go { margin-left: auto; color: var(--red); font-weight: 700; white-space: nowrap; }
 
-/* Open items */
-.open-box { margin-top: 14px; border: 1.5px solid var(--red); border-radius: 14px; padding: 10px 12px; background: var(--red-soft); }
-.open-box .lbl { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--red); }
-.open-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0 2px; }
-.open-row + .open-row { border-top: 1px solid color-mix(in srgb, var(--red) 25%, transparent); }
-.open-row input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--red); flex: none; }
-.open-row .t { font-weight: 600; }
-.open-row .d { font-size: 14px; color: var(--muted); }
-.open-row.done .t, .open-row.done .d { text-decoration: line-through; opacity: .6; }
 
 /* Timeline */
 .timeline { list-style: none; margin: 18px 0 0; padding: 0; }
@@ -168,6 +159,21 @@ h3 { font: 700 19px/1.2 var(--serif); margin: 26px 0 10px; }
 .sheet .s-ja2 { font-size: clamp(22px, 6.5vw, 44px); line-height: 1.4; margin-top: 16px; overflow-wrap: anywhere; }
 .sheet .s-en { font-size: 16px; color: #555; margin-top: 22px; }
 .hotel-tonight + .hotel-tonight { margin-top: 8px; }
+
+/* Still open */
+.open-count { color: var(--muted); font-weight: 500; }
+.open-count.late { color: var(--red); font-weight: 700; }
+.sheet.listmode { align-items: flex-start; }
+.sheet.listmode .sheet-body { max-width: 640px; text-align: left; }
+.sheet .s-h { font: 700 28px/1.2 var(--serif); margin: 0 0 6px; color: #111; }
+.sheet .s-note { font-size: 14px; color: #666; margin: 0 0 14px; }
+.todo-row { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-top: 1px solid #e5e5e5; color: #111; cursor: pointer; }
+.todo-row input { width: 24px; height: 24px; margin: 1px 0 0; accent-color: #b3261e; flex: none; }
+.todo-row .t { display: block; font-weight: 700; font-size: 17px; }
+.todo-row .d { display: block; font-size: 15px; color: #444; margin-top: 2px; }
+.todo-row .due { display: block; font-size: 13px; color: #777; margin-top: 4px; font-weight: 600; }
+.todo-row .due.late { color: #b3261e; }
+.todo-row.done .t, .todo-row.done .d { text-decoration: line-through; opacity: .55; }
 
 /* Trip map */
 .pin-n { display: inline-block; min-width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; line-height: 20px; text-align: center; margin-right: 6px; vertical-align: 2px; }
