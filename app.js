@@ -122,6 +122,7 @@
       '<div class="wx" id="wx" data-date="' + iso + '" data-city="' + day.city + '">' + esc(wx || '') + '</div></div></div>' +
       '<p class="highlights">' + esc(day.highlights) + '</p>';
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
+    h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span>At every meal: <b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
     if (isToday || iso === defaultDay()) h += openBox(openItems(iso), 'Still open');
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
@@ -188,7 +189,8 @@
 
   function phrasesView() {
     setTab('phrases');
-    view.innerHTML = '<h2>Phrase card</h2><p class="lead">Tap a phrase to show it full screen to the server.</p><div style="margin-top:14px">' +
+    view.innerHTML = '<h2>Phrase card</h2><p class="lead">Tap a phrase to show it to the server. Swipe or use the bar at the bottom to switch.</p><div style="margin-top:14px">' +
+      '<button class="phrase" data-phrase="-1"><div class="en">Our diet, on one screen</div><div class="ja" lang="ja">' + esc(T.phrases[0].ja) + ' …</div><div class="ro">Vegetarian · no meat or fish · no fish stock · no egg dishes</div></button>' +
       T.phrases.map(function (p, i) {
         return '<button class="phrase" data-phrase="' + i + '"><div class="en">' + esc(p.en) + '</div><div class="ja" lang="ja">' + esc(p.ja) + '</div><div class="ro">' + esc(p.ro) + '</div></button>';
       }).join('') + '</div>';
@@ -217,14 +219,64 @@
 
   // ---------- full-screen sheet ----------
   var sheet = d.getElementById('sheet'), sheetBody = d.getElementById('sheet-body');
-  function openSheet(html) { sheetBody.innerHTML = html; sheet.hidden = false; d.body.style.overflow = 'hidden'; }
+  function openSheet(html, mode) {
+    sheetBody.innerHTML = html; sheet.className = 'sheet' + (mode ? ' ' + mode : '');
+    sheet.hidden = false; sheet.scrollTop = 0; d.body.style.overflow = 'hidden';
+  }
   function closeSheet() { sheet.hidden = true; d.body.style.overflow = ''; }
   d.getElementById('sheet-close').onclick = closeSheet;
-  d.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeSheet(); });
+
+  // ---------- waiter view: one phrase huge, chips to switch ----------
+  // Index -1 is "Our diet": the four key lines on one screen.
+  var DIET = [0, 1, 2, 4], wIdx = 0;
+  function waiter(i) {
+    if (i === undefined) i = +(store('phrase') || -1);
+    var n = T.phrases.length; if (i < -1) i = n - 1; if (i >= n) i = -1;
+    wIdx = i; store('phrase', String(i));
+    var main;
+    if (i === -1) {
+      main = '<div class="w-stack">' + DIET.map(function (k) {
+        var p = T.phrases[k];
+        return '<div class="w-line"><div class="w-ja-s" lang="ja">' + esc(p.ja) + '</div><div class="w-en-s">' + esc(p.en) + '</div></div>';
+      }).join('') + '</div>';
+    } else {
+      var p = T.phrases[i];
+      main = '<div class="w-ja" lang="ja">' + esc(p.ja) + '</div><div class="w-en">' + esc(p.en) + '</div><div class="w-ro">' + esc(p.ro) + '</div>';
+    }
+    var chips = '<button class="w-chip' + (i === -1 ? ' on' : '') + '" data-w="-1">Our diet</button>' + T.phrases.map(function (p, k) {
+      return '<button class="w-chip' + (k === i ? ' on' : '') + '" data-w="' + k + '">' + esc(p.short || p.en) + '</button>';
+    }).join('');
+    var html = '<div class="w-main" id="w-main">' + main + '</div>' +
+      '<div class="w-bar"><button class="w-arrow" data-w="' + (i - 1) + '" aria-label="Previous phrase">‹</button>' +
+      '<div class="w-chips" id="w-chips">' + chips + '</div>' +
+      '<button class="w-arrow" data-w="' + (i + 1) + '" aria-label="Next phrase">›</button></div>';
+    if (sheet.hidden || !sheet.classList.contains('waiter')) openSheet(html, 'waiter');
+    else {
+      var keep = d.getElementById('w-chips').scrollLeft;
+      sheetBody.innerHTML = html; d.getElementById('w-chips').scrollLeft = keep;
+    }
+    var on = sheetBody.querySelector('.w-chip.on');
+    if (on) on.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }
+  // Swipe left or right on the phrase to step through.
+  var sx = null, sy = null;
+  sheet.addEventListener('touchstart', function (e) { if (!sheet.classList.contains('waiter') || !e.target.closest('#w-main')) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener('touchend', function (e) {
+    if (sx === null) return;
+    var dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) waiter(wIdx + (dx < 0 ? 1 : -1));
+  });
+  d.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeSheet();
+    if (!sheet.hidden && sheet.classList.contains('waiter')) {
+      if (e.key === 'ArrowRight') waiter(wIdx + 1);
+      if (e.key === 'ArrowLeft') waiter(wIdx - 1);
+    }
+  });
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-copy],[data-taxi],[data-phrase]');
+    var t = e.target.closest('[data-copy],[data-taxi],[data-phrase],[data-vegphrases],[data-w]');
     if (!t) return;
     if (t.dataset.copy) {
       e.preventDefault();
@@ -235,9 +287,12 @@
       var x = T.hotels[+t.dataset.taxi];
       openSheet('<div class="s-label">Please take us to:</div><div class="s-ja" lang="ja">' + esc(x.jaName) + '</div><div class="s-ja2" lang="ja">' + esc(x.jaAddress) + '</div>' +
         '<div class="s-en">' + esc(x.name) + ' · ' + esc(x.tel) + '</div>');
+    } else if (t.dataset.vegphrases) {
+      e.preventDefault(); waiter();
     } else if (t.dataset.phrase) {
-      var p = T.phrases[+t.dataset.phrase];
-      openSheet('<div class="s-ja" lang="ja">' + esc(p.ja) + '</div><div class="s-en">' + esc(p.en) + '<br><i>' + esc(p.ro) + '</i></div>');
+      waiter(+t.dataset.phrase);
+    } else if (t.dataset.w !== undefined) {
+      waiter(+t.dataset.w);
     }
   });
   d.addEventListener('change', function (e) {
