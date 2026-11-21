@@ -404,14 +404,12 @@
     tripMap = L.map(el, { zoomControl: true, attributionControl: true });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors' }).addTo(tripMap);
     var list = pins().filter(function (p) { return p.date === sel; });
-    var bounds = [], frame = frameCityOf(list);
     list.forEach(function (p) {
       var color = DAY_COLORS[p.di];
       var icon = L.divIcon({ className: '', html: '<div class="pin" style="background:' + color + '">' + p.n + '</div>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
       L.marker(p.ll, { icon: icon }).addTo(tripMap).bindPopup(
         '<div class="pop-d">' + esc(dow(p.date) + ' ' + dnum(p.date) + ' · ' + p.t) + '</div><div class="pop-t">' + esc(p.title) + '</div>' +
         '<a class="pop-a" href="#day/' + p.date + '/' + p.idx + '">Details ›</a>');
-      if (!frame || p.city === frame) bounds.push(p.ll);
     });
     T.hotels.forEach(function (h, i) {
       if (!h.ll) return;
@@ -419,19 +417,30 @@
       L.marker(h.ll, { icon: icon, zIndexOffset: -100 }).addTo(tripMap).bindPopup(
         '<div class="pop-d">' + esc(h.dates) + '</div><div class="pop-t">' + esc(h.name) + '</div><a class="pop-a" href="#" data-taxi="' + i + '">Taxi card ›</a>');
     });
-    // Frame tonight's hotel too (or last night's, on the day we leave).
-    var prev = T.days[T.days.findIndex(function (x) { return x.date === sel; }) - 1];
-    var stay = hotelFor(sel) || (prev && hotelFor(prev.date));
-    if (stay && stay.ll && (!frame || (stay.ll[1] > 137 ? 'tokyo' : 'kyoto') === frame)) bounds.push(stay.ll);
     if (!list.length) {
       var note = L.control({ position: 'topright' });
       note.onAdd = function () { var x = L.DomUtil.create('div', 'm-note'); x.textContent = 'No stops to map on this day.'; return x; };
       note.addTo(tripMap);
     }
-    if (bounds.length > 1) tripMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
-    else if (bounds.length === 1) tripMap.setView(bounds[0], 15);
-    else tripMap.setView([35.68, 139.74], 11);
+    frameMap(tripMap, sel);
     setTimeout(function () { if (tripMap) tripMap.invalidateSize(); }, 50);
+  }
+  // The view for a day: its stops plus that night's hotel (or last night's, on the
+  // day we leave). A travel day frames the city with more stops.
+  function mapBounds(sel) {
+    var list = pins().filter(function (p) { return p.date === sel; });
+    var frame = frameCityOf(list), bounds = [];
+    list.forEach(function (p) { if (!frame || p.city === frame) bounds.push(p.ll); });
+    var prev = T.days[T.days.findIndex(function (x) { return x.date === sel; }) - 1];
+    var stay = hotelFor(sel) || (prev && hotelFor(prev.date));
+    if (stay && stay.ll && (!frame || (stay.ll[1] > 137 ? 'tokyo' : 'kyoto') === frame)) bounds.push(stay.ll);
+    return bounds;
+  }
+  function frameMap(m, sel) {
+    var bounds = mapBounds(sel);
+    if (bounds.length > 1) m.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
+    else if (bounds.length === 1) m.setView(bounds[0], 15);
+    else m.setView([35.68, 139.74], 11);
   }
   function frameCityOf(list) {
     if (!list.length) return null;
@@ -491,9 +500,13 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-mfilter],[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
+    var t = e.target.closest('[data-offline],[data-savenow],[data-mfilter],[data-todo],[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
     if (!t) return;
-    if (t.dataset.mfilter) {
+    if (t.dataset.offline) {
+      e.preventDefault(); offlineSheet();
+    } else if (t.dataset.savenow) {
+      saveNow();
+    } else if (t.dataset.mfilter) {
       mealsFilter = t.dataset.mfilter; mealsView('all');
     } else if (t.dataset.todo) {
       e.preventDefault(); todoSheet();
@@ -567,6 +580,89 @@
     if (d.visibilityState === 'visible') { renderClock(); if (!location.hash || location.hash === '#today') route(); }
   });
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+  // ---------- offline ----------
+  // iOS keeps a Home Screen web app's storage apart from Safari's, and Safari
+  // tabs can lose site data after a week unused. So on iPhone the app should be
+  // added to the Home Screen and opened (and unlocked) there once while online.
+  var IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var STANDALONE = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  var offState = { files: null, missing: [], tiles: 0, busy: '' };
+  function swCall(msg) {
+    if (!('serviceWorker' in navigator)) return Promise.reject(new Error('no service worker'));
+    return navigator.serviceWorker.ready.then(function (reg) {
+      return new Promise(function (ok, fail) {
+        var ch = new MessageChannel(), t = setTimeout(function () { fail(new Error('timeout')); }, 60000);
+        ch.port1.onmessage = function (e) { clearTimeout(t); ok(e.data); };
+        (navigator.serviceWorker.controller || reg.active).postMessage(msg, [ch.port2]);
+      });
+    });
+  }
+  function offLine() {
+    var el = d.getElementById('offline-status'); if (!el) return;
+    var txt, cls;
+    if (offState.busy) { txt = offState.busy; cls = 'busy'; }
+    else if (!navigator.onLine) { txt = 'Offline · using the saved copy'; cls = 'off'; }
+    else if (IOS && !STANDALONE) { txt = 'Add to Home Screen for offline use ›'; cls = 'warn'; }
+    else if (offState.files === null) { txt = 'Checking offline copy…'; cls = 'busy'; }
+    else if (offState.missing.length) { txt = 'Not fully saved for offline · fix ›'; cls = 'warn'; }
+    else { txt = '✓ Saved for offline' + (store('mapsSavedAt') ? ' with maps' : ' · save maps ›'); cls = store('mapsSavedAt') ? 'ok' : 'warn'; }
+    el.textContent = txt; el.className = 'off-status ' + cls;
+  }
+  function checkOffline() {
+    return swCall({ type: 'status' }).then(function (r) {
+      offState.files = r.files; offState.missing = r.missing; offState.tiles = r.tiles;
+      if (r.missing.length && navigator.onLine) return swCall({ type: 'precache' }).then(function (r2) { offState.missing = r2.missing; });
+    }).catch(function () { offState.files = 0; offState.missing = ['service worker']; }).then(offLine);
+  }
+  // Load each day's map off screen, exactly as the Map tab frames it, so the
+  // service worker keeps those tiles. Same tiles you'd get tapping through the days.
+  function saveMaps(progress) {
+    var days = T.days.filter(function (x) { return mapBounds(x.date).length; });
+    return loadLeaflet().then(function () {
+      var box = d.createElement('div');
+      box.style.cssText = 'position:fixed;left:-10000px;top:0;width:' + Math.min(innerWidth, 500) + 'px;height:' + Math.max(400, innerHeight - 200) + 'px';
+      d.body.appendChild(box);
+      var i = 0;
+      function next() {
+        if (i >= days.length) { box.remove(); return; }
+        var day = days[i++]; progress('Saving maps: ' + dow(day.date) + ' ' + dnum(day.date) + ' (' + i + ' of ' + days.length + ')');
+        var m = L.map(box, { zoomControl: false, attributionControl: false });
+        var layer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { crossOrigin: true }).addTo(m);
+        return new Promise(function (done) {
+          var t = setTimeout(done, 15000); layer.on('load', function () { clearTimeout(t); done(); });
+          frameMap(m, day.date);
+        }).then(function () { m.remove(); return next(); });
+      }
+      return next();
+    });
+  }
+  function offlineSheet() {
+    var steps = IOS && !STANDALONE ?
+      '<div class="todo-row" style="display:block"><b>On iPhone, add this app to your Home Screen first.</b> Tap the Share button <b>⬆</b>, then <b>Add to Home Screen</b>. Open it from the Home Screen icon and enter the passphrase once while online. The Home Screen app keeps its own offline copy, separate from Safari, and iOS does not clear it.</div>' : '';
+    var st = offState.files === null ? 'Checking…' : offState.missing.length ? 'Missing: ' + offState.missing.join(', ') : 'All ' + offState.files + ' app files are saved on this phone.';
+    openSheet('<h2 class="s-h">Offline</h2><p class="s-note">The whole itinerary, taxi cards, phrases and meals work without a connection. Maps work offline for areas already saved.</p>' + steps +
+      '<div class="todo-row" style="display:block"><b>App:</b> ' + esc(st) + '<br><b>Maps:</b> ' + (offState.tiles || 0) + ' map tiles saved' +
+      (store('mapsSavedAt') ? ', every day\'s map saved ' + esc(store('mapsSavedAt')) : '; day maps not saved yet') + '.</div>' +
+      '<p><button class="btn primary" data-savenow="1"' + (navigator.onLine ? '' : ' disabled') + '>Save everything now</button></p>' +
+      '<p class="s-note" id="save-progress">' + (navigator.onLine ? 'Takes about a minute on Wi-Fi. Do this before a flight or train.' : 'Connect to the internet to save.') + '</p>', 'listmode');
+  }
+  function saveNow() {
+    var prog = function (t) { offState.busy = t; offLine(); var p = d.getElementById('save-progress'); if (p) p.textContent = t; };
+    prog('Saving app files…');
+    swCall({ type: 'precache' }).then(function (r) { offState.missing = r.missing; return saveMaps(prog); })
+      .then(function () {
+        store('mapsSavedAt', longDate(todayTokyo().date) + ' ' + todayTokyo().hm);
+        offState.busy = ''; return checkOffline();
+      })
+      .catch(function () { offState.busy = ''; offLine(); })
+      .then(function () { if (!sheet.hidden && sheet.classList.contains('listmode') && d.querySelector('[data-savenow]')) offlineSheet(); });
+  }
+  addEventListener('online', function () { offLine(); checkOffline(); });
+  addEventListener('offline', offLine);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(checkOffline, function () { offState.files = 0; offState.missing = ['service worker']; offLine(); });
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  }
+  offLine();
   }
 })();

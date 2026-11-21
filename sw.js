@@ -2,7 +2,7 @@
 // to the saved copy after 3 seconds or when there is no signal.
 // Paths are relative to where the app lives, so it works at a domain root (Render)
 // or in a subfolder (GitHub Pages).
-const CACHE = 'japan-v3';
+const CACHE = 'japan-v4';
 const TILES = 'japan-tiles';
 const BASE = self.registration.scope;
 const FILES = ['./', 'app.css', 'app.js', 'data.js', 'data.enc.json', 'unlock.js', 'manifest.webmanifest',
@@ -40,4 +40,28 @@ self.addEventListener('fetch', (e) => {
     const timeout = new Promise((done) => setTimeout(() => done(saved), 3000));
     return Promise.race([net.catch(() => saved), timeout]);
   })());
+});
+
+// Messages from the page: 'status' reports which app files are saved; 'precache'
+// fetches them all again from the network (when online) and reports what's missing.
+self.addEventListener('message', (e) => {
+  const port = e.ports[0]; if (!port) return;
+  const type = e.data && e.data.type;
+  const report = async () => {
+    const c = await caches.open(CACHE);
+    const missing = [];
+    for (const f of FILES) if (!(await c.match(f))) missing.push(f.slice(BASE.length) || 'index');
+    // data.js exists only on the server version; data.enc.json and unlock.js only on GitHub Pages.
+    const optional = ['data.js', 'data.enc.json', 'unlock.js'];
+    const present = FILES.length - missing.length;
+    const realMissing = missing.filter((m) => !optional.includes(m));
+    const hasData = !missing.includes('data.js') || !missing.includes('data.enc.json');
+    if (!hasData) realMissing.push('itinerary data');
+    const tiles = (await (await caches.open(TILES)).keys()).length;
+    return { files: present, missing: realMissing, tiles };
+  };
+  if (type === 'status') e.waitUntil(report().then((r) => port.postMessage(r)));
+  if (type === 'precache') e.waitUntil(caches.open(CACHE)
+    .then((c) => Promise.all(FILES.map((f) => fetch(f, { cache: 'no-cache' }).then((res) => { if (res.ok && !res.redirected) return c.put(f, res); }).catch(() => {}))))
+    .then(report).then((r) => port.postMessage(r)));
 });
