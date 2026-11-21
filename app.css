@@ -169,6 +169,21 @@ h3 { font: 700 19px/1.2 var(--serif); margin: 26px 0 10px; }
 .sheet .s-en { font-size: 16px; color: #555; margin-top: 22px; }
 .hotel-tonight + .hotel-tonight { margin-top: 8px; }
 
+/* Trip map */
+.pin-n { display: inline-block; min-width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 800; line-height: 20px; text-align: center; margin-right: 6px; vertical-align: 2px; }
+.sheet.mapmode { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; overflow: hidden; }
+.sheet.mapmode .sheet-body { max-width: none; flex: 1; display: flex; flex-direction: column; min-height: 0; text-align: left; }
+.m-bar { flex: none; padding: calc(10px + env(safe-area-inset-top, 0px)) 72px 10px 10px; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
+.m-map { flex: 1; min-height: 0; background: #eae6df; }
+.m-msg { padding: 24px; color: #555; text-align: center; }
+.w-chip .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.pin { width: 28px; height: 28px; border-radius: 50%; color: #fff; font: 700 13px/26px var(--sans); text-align: center; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.pin-h { width: 30px; height: 30px; line-height: 28px; background: #111; font-size: 14px; }
+.pop-d { font-size: 12px; color: #666; }
+.pop-t { font-weight: 700; font-size: 15px; margin: 2px 0 6px; color: #111; }
+.pop-a { font-weight: 700; color: #b3261e !important; text-decoration: none; }
+.leaflet-container { font-family: var(--sans); }
+
 /* Waiter view */
 .sheet.waiter { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; overflow: hidden; }
 .sheet.waiter .sheet-body { max-width: none; flex: 1; display: flex; flex-direction: column; min-height: 0; }

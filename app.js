@@ -95,7 +95,8 @@
   }
   function travelLine(r) {
     if (!r || !r.by) return '';
-    return '<p class="travel-t">Travel time ' + (r.by === 'foot' ? 'on foot' : 'by ' + esc(r.by)) + ': ' + esc(r.time) + '</p>';
+    return '<p class="travel-t">Travel time ' + (r.by === 'foot' ? 'on foot' : 'by ' + esc(r.by)) + ': ' + esc(r.time) +
+      (r.alt ? '<br>' + esc(r.alt.charAt(0).toUpperCase() + r.alt.slice(1)) : '') + '</p>';
   }
   function actions(o, r) {
     var a = [], map = o.map || (r && r.map);
@@ -118,7 +119,7 @@
   }
 
   // ---------- views ----------
-  function dayView(iso, focusNow) {
+  function dayView(iso, focusNow, openIdx) {
     var day = tripDay(iso); if (!day) return dayView(defaultDay(), true);
     renderDays(iso); setTab('day');
     var now = todayTokyo(), isToday = now.date === iso, nowIdx = -1, nextIdx = -1;
@@ -126,7 +127,8 @@
       if (!it.at) return;
       if (it.at <= now.hm) nowIdx = i; else if (nextIdx < 0) nextIdx = i;
     });
-    var hotel = hotelFor(iso), wx = weatherFor(iso, day.city);
+    var hotel = hotelFor(iso), wx = weatherFor(iso, day.city), pinNo = {}, pn = 0;
+    day.items.forEach(function (it, i) { var r = (T.routes || {})[iso + '|' + it.title]; if (r && r.ll) pinNo[i] = ++pn; });
     var h = '<div class="day-head"><div class="big-date">' + dnum(iso) + '</div><div>' +
       '<div class="day-meta">' + esc(longDate(iso)) + (day.city === 'tokyo' ? ' · Tokyo' : day.city === 'kyoto' ? ' · Kyoto' : '') + '</div>' +
       '<h2>' + esc(day.title) + '</h2>' + (day.badge ? '<span class="badge">' + esc(day.badge) + '</span>' : '') +
@@ -134,6 +136,7 @@
       '<p class="highlights">' + esc(day.highlights) + '</p>';
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
     h += '<a class="hotel-tonight" href="#" data-vegphrases="1"><span><b>Vegetarian phrases</b></span><span class="go">Show ›</span></a>';
+    h += '<a class="hotel-tonight" href="#" data-map="' + iso + '"><span><b>Trip map</b></span><span class="go">Show ›</span></a>';
     if (isToday || iso === defaultDay()) h += openBox(openItems(iso), 'Still open');
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
       var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
@@ -150,7 +153,7 @@
       body += actions(it, (T.routes || {})[iso + '|' + it.title]);
       return '<li class="' + cls.join(' ') + '" id="it-' + i + '"><details' + (i === nowIdx || i === nextIdx ? ' open' : '') + '><summary>' +
         '<span class="when' + (isClock ? ' clock-t' : '') + '">' + esc(it.t) + '</span>' +
-        '<span><span class="ttl">' + esc(it.title) + '</span>' +
+        '<span>' + (pinNo[i] ? '<span class="pin-n" style="background:' + DAY_COLORS[T.days.indexOf(day)] + '">' + pinNo[i] + '</span>' : '') + '<span class="ttl">' + esc(it.title) + '</span>' +
         ((it.tags && it.tags.length) || extra ? '<span class="tags">' + extra + tagHtml(it.tags) + '</span>' : '') +
         (it.alert ? '<div class="alert">' + esc(it.alert) + '</div>' : '') + '</span>' +
         '<span class="chev" aria-hidden="true">▼</span></summary><div class="body">' + body + '</div></details></li>';
@@ -158,8 +161,9 @@
     if (day.notes) h += '<div class="day-notes">' + esc(day.notes) + '</div>';
     if (iso === T.days[0].date) h += '<p class="intro">' + esc(T.intro) + '</p>';
     view.innerHTML = h;
-    var target = focusNow && (nowIdx >= 0 ? nowIdx : nextIdx);
-    if (focusNow && target >= 0) {
+    var target = openIdx !== undefined ? openIdx : focusNow && (nowIdx >= 0 ? nowIdx : nextIdx);
+    if (openIdx !== undefined) { var od = d.querySelector('#it-' + openIdx + ' details'); if (od) od.open = true; }
+    if ((focusNow || openIdx !== undefined) && target >= 0) {
       var el = d.getElementById('it-' + target);
       if (el) setTimeout(function () { var y = el.getBoundingClientRect().top + scrollY - d.getElementById('days').offsetHeight - 8; scrollTo(0, Math.max(0, y)); }, 0);
     } else scrollTo(0, 0);
@@ -235,7 +239,90 @@
     sheetBody.innerHTML = html; sheet.className = 'sheet' + (mode ? ' ' + mode : '');
     sheet.hidden = false; sheet.scrollTop = 0; d.body.style.overflow = 'hidden';
   }
-  function closeSheet() { sheet.hidden = true; d.body.style.overflow = ''; }
+  function closeSheet() {
+    if (tripMap) { tripMap.remove(); tripMap = null; }
+    sheet.hidden = true; d.body.style.overflow = '';
+  }
+
+  // ---------- trip map (Leaflet + OpenStreetMap; loaded on first use) ----------
+  var tripMap = null, leafletLoading = null;
+  var DAY_COLORS = ['#7a6f62', '#8a5a00', '#b3261e', '#1f4e8c', '#6a3d9a', '#0f766e', '#c2410c', '#2f6b3a', '#a21caf', '#334155'];
+  function loadLeaflet() {
+    if (window.L) return Promise.resolve();
+    if (leafletLoading) return leafletLoading;
+    leafletLoading = new Promise(function (ok, fail) {
+      var css = d.createElement('link'); css.rel = 'stylesheet'; css.href = 'vendor/leaflet.css'; d.head.appendChild(css);
+      var js = d.createElement('script'); js.src = 'vendor/leaflet.js'; js.onload = ok; js.onerror = function () { leafletLoading = null; fail(); }; d.head.appendChild(js);
+    });
+    return leafletLoading;
+  }
+  function pins() {
+    var out = [];
+    T.days.forEach(function (day, di) {
+      var n = 0;
+      day.items.forEach(function (it, i) {
+        var r = (T.routes || {})[day.date + '|' + it.title];
+        if (!r || !r.ll) return;
+        n++;
+        out.push({ date: day.date, di: di, idx: i, n: n, ll: r.ll, t: it.t, title: it.title,
+          city: r.ll[1] > 137 ? 'tokyo' : 'kyoto' });
+      });
+    });
+    return out;
+  }
+  function openMap(sel) {
+    var days = T.days.filter(function (x) { return pins().some(function (p) { return p.date === x.date; }); });
+    if (!sel || (sel !== 'tokyo' && sel !== 'kyoto' && !days.some(function (x) { return x.date === sel; }))) sel = tripDay(defaultDay()) && days.some(function (x) { return x.date === defaultDay(); }) ? defaultDay() : 'tokyo';
+    var chips = '<button class="w-chip' + (sel === 'tokyo' ? ' on' : '') + '" data-mapsel="tokyo">All Tokyo</button>' +
+      '<button class="w-chip' + (sel === 'kyoto' ? ' on' : '') + '" data-mapsel="kyoto">All Kyoto</button>' +
+      days.map(function (x) {
+        return '<button class="w-chip' + (sel === x.date ? ' on' : '') + '" data-mapsel="' + x.date + '"><span class="dot" style="background:' + DAY_COLORS[T.days.indexOf(x)] + '"></span>' + dow(x.date) + ' ' + dnum(x.date) + '</button>';
+      }).join('');
+    var html = '<div class="m-bar"><div class="w-chips">' + chips + '</div></div><div id="trip-map" class="m-map"><p class="m-msg">Loading map…</p></div>';
+    if (tripMap) { tripMap.remove(); tripMap = null; }
+    if (sheet.hidden || !sheet.classList.contains('mapmode')) openSheet(html, 'mapmode'); else sheetBody.innerHTML = html;
+    var on = sheetBody.querySelector('.w-chip.on'); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+    loadLeaflet().then(function () { drawMap(sel); }, function () {
+      d.getElementById('trip-map').innerHTML = '<p class="m-msg">The map needs a connection the first time. Try again when online.</p>';
+    });
+  }
+  function drawMap(sel) {
+    var el = d.getElementById('trip-map'); if (!el) return;
+    el.innerHTML = '';
+    tripMap = L.map(el, { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, crossOrigin: true, attribution: '© OpenStreetMap contributors' }).addTo(tripMap);
+    var all = pins(), list;
+    if (sel === 'tokyo' || sel === 'kyoto') list = all.filter(function (p) { return p.city === sel; });
+    else {
+      list = all.filter(function (p) { return p.date === sel; });
+      // A travel day spans both cities: frame the city with more stops.
+    }
+    var bounds = [];
+    list.forEach(function (p) {
+      var color = DAY_COLORS[p.di];
+      var icon = L.divIcon({ className: '', html: '<div class="pin" style="background:' + color + '">' + p.n + '</div>', iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+      L.marker(p.ll, { icon: icon }).addTo(tripMap).bindPopup(
+        '<div class="pop-d">' + esc(dow(p.date) + ' ' + dnum(p.date) + ' · ' + p.t) + '</div><div class="pop-t">' + esc(p.title) + '</div>' +
+        '<a class="pop-a" href="#day/' + p.date + '/' + p.idx + '">Details ›</a>');
+      if (sel === 'tokyo' || sel === 'kyoto' || !frameCityOf(list) || p.city === frameCityOf(list)) bounds.push(p.ll);
+    });
+    T.hotels.forEach(function (h, i) {
+      if (!h.ll) return;
+      var icon = L.divIcon({ className: '', html: '<div class="pin pin-h">H</div>', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
+      L.marker(h.ll, { icon: icon, zIndexOffset: -100 }).addTo(tripMap).bindPopup(
+        '<div class="pop-d">' + esc(h.dates) + '</div><div class="pop-t">' + esc(h.name) + '</div><a class="pop-a" href="#" data-taxi="' + i + '">Taxi card ›</a>');
+    });
+    if (bounds.length > 1) tripMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
+    else if (bounds.length === 1) tripMap.setView(bounds[0], 15);
+    else tripMap.setView(sel === 'kyoto' ? [35.0, 135.76] : [35.68, 139.74], 12);
+    setTimeout(function () { if (tripMap) tripMap.invalidateSize(); }, 50);
+  }
+  function frameCityOf(list) {
+    if (!list.length) return null;
+    var tk = list.filter(function (p) { return p.city === 'tokyo'; }).length;
+    if (tk === 0 || tk === list.length) return null;
+    return tk * 2 >= list.length ? 'tokyo' : 'kyoto';
+  }
   d.getElementById('sheet-close').onclick = closeSheet;
 
   // ---------- waiter view: one phrase huge, chips to switch ----------
@@ -288,7 +375,7 @@
 
   // ---------- events ----------
   d.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w]');
+    var t = e.target.closest('[data-copy],[data-taxi],[data-place],[data-phrase],[data-vegphrases],[data-w],[data-map],[data-mapsel]');
     if (!t) return;
     if (t.dataset.copy) {
       e.preventDefault();
@@ -303,6 +390,10 @@
       e.preventDefault();
       openSheet('<div class="s-label">Please take us here.</div><div class="s-please" lang="ja">ここまでお願いします。</div><div class="s-ja" lang="ja">' + esc(t.dataset.ja) + '</div>' +
         (t.dataset.addr ? '<div class="s-ja2" lang="ja">' + esc(t.dataset.addr) + '</div>' : '') + '<div class="s-en">' + esc(t.dataset.en) + '</div>');
+    } else if (t.dataset.map) {
+      e.preventDefault(); openMap(t.dataset.map);
+    } else if (t.dataset.mapsel) {
+      openMap(t.dataset.mapsel);
     } else if (t.dataset.vegphrases) {
       e.preventDefault(); waiter();
     } else if (t.dataset.phrase) {
@@ -328,7 +419,8 @@
   function route(first) {
     closeSheet();
     var h = location.hash.slice(1);
-    if (h.indexOf('day/') === 0) return dayView(h.slice(4), false);
+    var m = h.match(/^day\/(\d{4}-\d{2}-\d{2})(?:\/(\d+))?$/);
+    if (m) return dayView(m[1], false, m[2] !== undefined ? +m[2] : undefined);
     if (h === 'bookings') return bookingsView();
     if (h === 'taxi') return hotelsView();
     if (h === 'phrases') return phrasesView();
