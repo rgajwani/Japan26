@@ -51,6 +51,11 @@ button { font: inherit; color: inherit; }
 .day-chip.sel { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .day-chip.sel .dow { color: inherit; opacity: .8; }
 
+/* Items that apply to one person only: de-emphasized */
+.item.muted .ttl, .item.muted .when, .item.muted .when.clock-t { color: var(--faint); font-weight: 500; }
+.item.muted .ttl { font-size: 15px; }
+.tag.raj { border: 1px solid var(--line); color: var(--faint); background: transparent; }
+
 /* Offline status */
 .off-status { display: block; max-width: 720px; margin: 24px auto 0; padding: 0; border: 0; background: none; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; width: 100%; }
 .off-status.ok { color: var(--green); }

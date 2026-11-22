@@ -89,7 +89,7 @@
 
   // ---------- pieces ----------
   function tagHtml(tags) {
-    var label = { booked: 'Booked', optional: 'Optional', requested: 'Requested', todo: 'To do', veg: 'Veg pick', split: 'Split' };
+    var label = { booked: 'Booked', optional: 'Optional', requested: 'Requested', todo: 'To do', veg: 'Veg pick', split: 'Split', raj: 'Raj only' };
     return (tags || []).map(function (t) { return '<span class="tag ' + t + '">' + (label[t] || t) + '</span>'; }).join('');
   }
   function taxiChip(r, en) {
@@ -155,7 +155,7 @@
       '<p class="highlights">' + esc(day.highlights) + '</p>';
     if (hotel) h += '<a class="hotel-tonight" href="#" data-taxi="' + T.hotels.indexOf(hotel) + '"><span>Tonight: <b>' + esc(hotel.name) + '</b></span><span class="go">Taxi card ›</span></a>';
     h += '<ol class="timeline">' + day.items.map(function (it, i) {
-      var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (i === nowIdx) cls.push('now');
+      var cls = ['item']; if ((it.tags || []).indexOf('optional') >= 0) cls.push('optional'); if (it.muted) cls.push('muted'); if (i === nowIdx) cls.push('now');
       var extra = i === nowIdx ? '<span class="tag nowtag">Now</span>' : i === nextIdx ? '<span class="tag nexttag">Next</span>' : '';
       var isClock = /^\d|^About \d|^By \d|^From \d/.test(it.t);
       var body = '';
