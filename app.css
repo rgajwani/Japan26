@@ -51,6 +51,15 @@ button { font: inherit; color: inherit; }
 .day-chip.sel { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .day-chip.sel .dow { color: inherit; opacity: .8; }
 
+/* Public-transit option under the travel line */
+.metro-t { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; background: var(--card); border: 1px solid var(--line); }
+.metro-t b { font-weight: 700; }
+.m-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 5px; margin-right: 6px; vertical-align: 1px; }
+.r-good .m-badge { background: var(--green-soft); color: var(--green); }
+.r-ok .m-badge { background: var(--amber-soft); color: var(--amber); }
+.r-poor .m-badge { border: 1px solid var(--line); color: var(--faint); }
+.r-poor { color: var(--muted); }
+
 /* Items that apply to one person only: de-emphasized */
 .item.muted .ttl, .item.muted .when, .item.muted .when.clock-t { color: var(--faint); font-weight: 500; }
 .item.muted .ttl { font-size: 15px; }

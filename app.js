@@ -101,7 +101,13 @@
   function travelLine(r) {
     if (!r || !r.by) return '';
     return '<p class="travel-t">Travel time ' + (r.by === 'foot' ? 'on foot' : 'by ' + esc(r.by)) + ': ' + esc(r.time) +
-      (r.alt ? '<br>' + esc(r.alt.charAt(0).toUpperCase() + r.alt.slice(1)) : '') + '</p>';
+      (r.alt ? '<br>' + esc(r.alt.charAt(0).toUpperCase() + r.alt.slice(1)) : '') + '</p>' + transitLine(r.metro);
+  }
+  var RATING = { good: 'Good option', ok: 'Possible', poor: 'Not recommended' };
+  function transitLine(m) {
+    if (!m) return '';
+    return '<p class="metro-t r-' + m.rating + '"><span class="m-badge">' + esc(m.by.charAt(0).toUpperCase() + m.by.slice(1)) + ' · ' + RATING[m.rating] + '</span>' +
+      '<b>' + esc(m.time) + '.</b> ' + esc(m.how) + '</p>';
   }
   function actions(o, r) {
     var a = [], map = o.map || (r && r.map);
