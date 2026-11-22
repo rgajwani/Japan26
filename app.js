@@ -227,7 +227,7 @@
   function phrasesView() {
     setTab('phrases');
     view.innerHTML = '<h2>Phrase card</h2><p class="lead">Tap a phrase to show it to the server. Swipe or use the bar at the bottom to switch.</p><div style="margin-top:14px">' +
-      '<button class="phrase" data-phrase="-1"><div class="en">Our diet, on one screen</div><div class="ja" lang="ja">' + esc(T.phrases[0].ja) + ' …</div><div class="ro">Vegetarian · no meat or fish · no fish stock · no egg dishes</div></button>' +
+      '<button class="phrase" data-phrase="-1"><div class="en">Our diet, on one screen</div><div class="ja" lang="ja">' + esc(T.phrases[DIET[0]].ja) + ' …</div><div class="ro">Vegetarian · no meat or fish · no fish stock · no egg dishes</div></button>' +
       T.phrases.map(function (p, i) {
         return '<button class="phrase" data-phrase="' + i + '"><div class="en">' + esc(p.en) + '</div><div class="ja" lang="ja">' + esc(p.ja) + '</div><div class="ro">' + esc(p.ro) + '</div></button>';
       }).join('') + '</div>';
@@ -459,7 +459,7 @@
 
   // ---------- waiter view: one phrase huge, chips to switch ----------
   // Index -1 is "Our diet": the four key lines on one screen.
-  var DIET = [0, 1, 2, 4], wIdx = 0;
+  var DIET = [1, 2, 3, 5], wIdx = 0;
   function waiter(i) {
     if (i === undefined) i = +(store('phrase') || -1);
     var n = T.phrases.length; if (i < -1) i = n - 1; if (i >= n) i = -1;
